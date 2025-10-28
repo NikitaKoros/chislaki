@@ -183,27 +183,13 @@ func df(x float64) float64 {
 	return math.Log10(x+3) + x/(math.Ln10*(x+3)) + 2*(x+1)
 }
 
-// Метод простой итерации: x = φ(x)
-func phi(x float64) float64 {
-	if x+3 <= 0 {
-		return math.NaN()
-	}
-	val := 5 - x*math.Log10(x+3)
-	if val < 0 {
-		return math.NaN()
-	}
-	return -1 + math.Sqrt(val)
+// Метод простой итерации с lambda: φ(x) = x - λf(x) - коэффициент релаксации
+func phi(x, lambda float64) float64 {
+	return x - lambda*f(x)
 }
 
-func dphi(x float64) float64 {
-	if x+3 <= 0 {
-		return math.NaN()
-	}
-	val := 5 - x*math.Log10(x+3)
-	if val <= 0 {
-		return math.NaN()
-	}
-	return (-math.Log10(x+3) - x/(math.Ln10*(x+3))) / (2 * math.Sqrt(val))
+func dphi(x, lambda float64) float64 {
+	return 1 - lambda*df(x)
 }
 
 type MethodResult struct {
@@ -233,151 +219,129 @@ func simpleIterationInterval(a, b, eps float64, maxIter int) MethodResult {
 		return MethodResult{0, 0, false, fmt.Sprintf("❌ f(a)*f(b)=%.6f >= 0 — функция не меняет знак на [a,b]", fa*fb)}
 	}
 
-	// Проверка монотонности
-	dfa, dfb := df(a), df(b)
-	msg := ""
-	if dfa*dfb > 0 {
-		msg += "f'(a)*f'(b)>0 — функция монотонна\n"
-	} else {
-		msg += "f'(a)*f'(b)<=0 — функция немонотонна\n"
-	}
-
-	// Проверка знакопостоянства второй производной
-	d2fa, d2fb := ddf(a), ddf(b)
-	if d2fa*d2fb > 0 {
-		msg += "f''(a)*f''(b)>0 — функция сохраняет выпуклость/вогнутость\n"
-	} else {
-		msg += "f''(a)*f''(b)<=0 — вторая производная меняет знак\n"
-	}
-
-	// Выбор x0 по условию f(x0)*f''(x0) > 0
-	var x0 float64
-	condA := fa * d2fa
-	condB := fb * d2fb
-	if condA > 0 && condB > 0 {
-		if math.Abs(fa) > math.Abs(fb) {
-			x0 = a
-		} else {
-			x0 = b
+	// Оценка диапазона производной на отрезке
+	samples := 101
+	minDf, maxDf := math.Inf(1), math.Inf(-1)
+	for i := 0; i < samples; i++ {
+		x := a + (b-a)*float64(i)/float64(samples-1)
+		dfx := df(x)
+		if dfx < minDf {
+			minDf = dfx
 		}
-		msg += fmt.Sprintf("Оба конца удовлетворяют f(x)*f''(x)>0. Выбрана x₀=%.6f\n", x0)
-	} else if condA > 0 {
-		x0 = a
-		msg += fmt.Sprintf("f(a)*f''(a)>0. Выбрана x₀=a=%.6f\n", x0)
-	} else if condB > 0 {
-		x0 = b
-		msg += fmt.Sprintf("f(b)*f''(b)>0. Выбрана x₀=b=%.6f\n", x0)
-	} else {
-		x0 = (a + b) / 2
-		msg += fmt.Sprintf("Ни один конец не подходит. Выбрана середина x₀=%.6f\n", x0)
+		if dfx > maxDf {
+			maxDf = dfx
+		}
 	}
 
-	// Проверка условия сходимости |φ'(x0)| < 1
-	derivative := math.Abs(dphi(x0))
-	if derivative >= 1 || math.IsNaN(derivative) {
-		msg += fmt.Sprintf("❌ |φ'(x₀)|=%.6f >= 1 — метод может не сходиться", derivative)
-		return MethodResult{0, 0, false, msg}
+	// Выбор оптимального lambda
+	var lambda float64
+	if minDf > 0 && maxDf > 0 {
+		lambda = 2 / (minDf + maxDf)
+	} else if minDf < 0 && maxDf < 0 {
+		lambda = 2 / (minDf + maxDf)
+	} else {
+		lambda = 0.5 / math.Max(math.Abs(minDf), math.Abs(maxDf))
+	}
+
+	// Проверка условия сходимости |φ'(x)| < 1
+	dPhiA := math.Abs(dphi(a, lambda))
+	dPhiB := math.Abs(dphi(b, lambda))
+	condA := dPhiA < 1
+	condB := dPhiB < 1
+
+	var x float64
+	if condA {
+		x = a
+	} else if condB {
+		x = b
+	} else {
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке a, ни в точке b"}
 	}
 
 	// Итерации
-	x := x0
 	for i := 0; i < maxIter; i++ {
-		xNew := phi(x)
+		xNew := phi(x, lambda)
 		if math.IsNaN(xNew) {
-			return MethodResult{0, i, false, msg + fmt.Sprintf("φ(x) неопределена при x=%.6f", x)}
+			return MethodResult{0, i, false, fmt.Sprintf("φ(x) неопределена при x=%.6f", x)}
 		}
 		if math.Abs(xNew-x) < eps {
-			msg += fmt.Sprintf("|φ'(x)|=%.6f<1 — метод сошёлся", math.Abs(dphi(xNew)))
-			return MethodResult{xNew, i + 1, true, msg}
+			return MethodResult{xNew, i + 1, true, fmt.Sprintf("|φ'(x)|<1 — метод сошёлся")}
 		}
 		x = xNew
 	}
-	return MethodResult{x, maxIter, false, msg + "Не сошёлся за maxIter"}
+	return MethodResult{x, maxIter, false, "Не сошёлся за maxIter"}
 }
 
 // Метод Ньютона
 func newtonInterval(a, b, eps float64, maxIter int) MethodResult {
 	fa, fb := f(a), f(b)
 
-	// 1. Проверка смены знака
+	// Проверка смены знака
 	if fa*fb >= 0 {
 		return MethodResult{0, 0, false, fmt.Sprintf("❌ f(a)*f(b)=%.6f >= 0 — функция не меняет знак на [a,b]", fa*fb)}
 	}
 
-	// 2. Монотонность
-	dfa, dfb := df(a), df(b)
-	msg := ""
-	if dfa*dfb > 0 {
-		msg += "f'(a)*f'(b)>0 — функция монотонна\n"
-	} else {
-		msg += "f'(a)*f'(b)<=0 — производная меняет знак\n"
-	}
+	// Проверка условия сходимости и выбор начальной точки
+	dfa := df(a)
+	d2fa := ddf(a)
+	condA := math.Abs(fa*d2fa) < dfa*dfa
 
-	// 3. Проверка второй производной
-	d2fa, d2fb := ddf(a), ddf(b)
-	if d2fa*d2fb > 0 {
-		msg += "f''(a)*f''(b)>0 — функция сохраняет выпуклость/вогнутость\n"
-	} else {
-		msg += "f''(a)*f''(b)<=0 — вторая производная меняет знак\n"
-	}
+	dfb := df(b)
+	d2fb := ddf(b)
+	condB := math.Abs(fb*d2fb) < dfb*dfb
 
-	// 4. Выбор x0
-	var x0 float64
-	condA := fa * d2fa
-	condB := fb * d2fb
-	if condA > 0 && condB > 0 {
-		if math.Abs(fa) > math.Abs(fb) {
-			x0 = a
-		} else {
-			x0 = b
-		}
-		msg += fmt.Sprintf("Оба конца удовлетворяют f(x)*f''(x)>0. Выбрана x₀=%.6f\n", x0)
-	} else if condA > 0 {
-		x0 = a
-		msg += fmt.Sprintf("f(a)*f''(a)>0. Выбрана x₀=a=%.6f\n", x0)
-	} else if condB > 0 {
-		x0 = b
-		msg += fmt.Sprintf("f(b)*f''(b)>0. Выбрана x₀=b=%.6f\n", x0)
+	var x float64
+	if condA {
+		x = a
+	} else if condB {
+		x = b
 	} else {
-		x0 = (a + b) / 2
-		msg += fmt.Sprintf("Ни один конец не подходит. Выбрана середина x₀=%.6f\n", x0)
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке a, ни в точке b"}
 	}
 
 	// Итерации Ньютона
-	x := x0
 	for i := 0; i < maxIter; i++ {
 		fx := f(x)
 		dfx := df(x)
 		if math.Abs(dfx) < 1e-10 {
-			return MethodResult{x, i, false, msg + "f'(x)≈0 — деление невозможно"}
+			return MethodResult{x, i, false, "f'(x)≈0 — деление невозможно"}
 		}
 		xNew := x - fx/dfx
 		if math.Abs(xNew-x) < eps {
-			msg += fmt.Sprintf("|f'(x)|=%.6f != 0 — метод сошёлся", math.Abs(df(xNew)))
-			return MethodResult{xNew, i + 1, true, msg}
+			return MethodResult{xNew, i + 1, true, "Метод сошёлся"}
 		}
 		x = xNew
 	}
-	return MethodResult{x, maxIter, false, msg + "Не сошёлся за maxIter"}
+	return MethodResult{x, maxIter, false, "Не сошёлся за maxIter"}
 }
 
 // Метод секущих
 func secant(x0, x1, eps float64, maxIter int) MethodResult {
+	// Проверка условия сходимости и выбор точек
+	fx0 := f(x0)
+	dfx0 := df(x0)
+	d2fx0 := ddf(x0)
+	cond0 := math.Abs(fx0*d2fx0) < dfx0*dfx0
+
+	fx1 := f(x1)
+	dfx1 := df(x1)
+	d2fx1 := ddf(x1)
+	cond1 := math.Abs(fx1*d2fx1) < dfx1*dfx1
+
+	if !cond0 && !cond1 {
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке x₀, ни в точке x₁"}
+	}
+
 	for i := 0; i < maxIter; i++ {
-		fx0, fx1 := f(x0), f(x1)
 		if math.Abs(fx1-fx0) < 1e-10 {
 			return MethodResult{Root: x1, Iterations: i, Converged: false, Message: "f(x₁) ≈ f(x₀)"}
 		}
 		xNew := x1 - fx1*(x1-x0)/(fx1-fx0)
 		if math.Abs(xNew-x1) < eps {
-			return MethodResult{
-				Root:       xNew,
-				Iterations: i + 1,
-				Converged:  true,
-				Message:    fmt.Sprintf("|x₁ - x₀| = %.6f < ε", math.Abs(xNew-x1)),
-			}
+			return MethodResult{xNew, i + 1, true, "Метод сошёлся"}
 		}
 		x0, x1 = x1, xNew
+		fx0, fx1 = fx1, f(x1)
 	}
 	return MethodResult{Root: x1, Iterations: maxIter, Converged: false, Message: "Не сошелся"}
 }
@@ -386,71 +350,51 @@ func secant(x0, x1, eps float64, maxIter int) MethodResult {
 func chord(a, b, eps float64, maxIter int) MethodResult {
 	fa, fb := f(a), f(b)
 	if fa*fb >= 0 {
-		return MethodResult{Root: 0, Iterations: 0, Converged: false,
-			Message: fmt.Sprintf("f(a)*f(b) = %.6f >= 0 — нет гарантии наличия корня на [a,b]", fa*fb),
-		}
+		return MethodResult{0, 0, false, fmt.Sprintf("f(a)*f(b) = %.6f >= 0 — нет гарантии наличия корня на [a,b]", fa*fb)}
 	}
 
-	f2a := ddf(a)
-	if fa*f2a <= 0 {
-		return MethodResult{
-			Root:       0,
-			Iterations: 0,
-			Converged:  false,
-			Message:    fmt.Sprintf("Условие сходимости: f(a)*f''(a) = %.6f <= 0 — метод хорд может не сойтись", fa*f2a),
-		}
+	// Проверка условия сходимости и выбор начальной точки
+	dfa := df(a)
+	d2fa := ddf(a)
+	condA := math.Abs(fa*d2fa) < dfa*dfa
+
+	dfb := df(b)
+	d2fb := ddf(b)
+	condB := math.Abs(fb*d2fb) < dfb*dfb
+
+	var x float64
+	if condA {
+		x = a
+	} else if condB {
+		x = b
+	} else {
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке a, ни в точке b"}
 	}
 
-	x := a
 	for i := 0; i < maxIter; i++ {
 		fx := f(x)
 		xNew := x - fx*(x-b)/(fx-fb)
 		if math.Abs(xNew-x) < eps {
-			return MethodResult{
-				Root:       xNew,
-				Iterations: i + 1,
-				Converged:  true,
-				Message:    fmt.Sprintf("Условие сходимости: f(a)*f''(a) = %.6f > 0 — метод хорд сходится", fa*f2a),
-			}
+			return MethodResult{xNew, i + 1, true, "Метод сошёлся"}
 		}
 		x = xNew
 	}
-	return MethodResult{Root: x, Iterations: maxIter, Converged: false, Message: "Не сошелся за maxIter"}
+	return MethodResult{x, maxIter, false, "Не сошелся за maxIter"}
 }
 
 // Метод дихотомии
 func bisection(a, b, eps float64, maxIter int) MethodResult {
 	fa, fb := f(a), f(b)
 
-	if math.IsNaN(fa) || math.IsNaN(fb) || math.IsInf(fa, 0) || math.IsInf(fb, 0) {
-		return MethodResult{
-			Root:       0,
-			Iterations: 0,
-			Converged:  false,
-			Message:    fmt.Sprintf("Значения функции на концах должны быть конечными: f(a)=%.6f, f(b)=%.6f", fa, fb),
-		}
-	}
-
 	if fa*fb >= 0 {
-		return MethodResult{
-			Root:       0,
-			Iterations: 0,
-			Converged:  false,
-			Message:    fmt.Sprintf("f(a)*f(b) = %.6f >= 0 — нет гарантии корня на [a,b]", fa*fb),
-		}
+		return MethodResult{0, 0, false, fmt.Sprintf("f(a)*f(b) = %.6f >= 0 — нет гарантии корня на [a,b]", fa*fb)}
 	}
 
-	// Дихотомия всегда сходится, если f непрерывна и f(a)*f(b)<0
 	for i := 0; i < maxIter; i++ {
 		c := (a + b) / 2
 		fc := f(c)
 		if (b - a) < eps {
-			return MethodResult{
-				Root:       c,
-				Iterations: i + 1,
-				Converged:  true,
-				Message:    fmt.Sprintf("Условие сходимости: f(a)*f(b) = %.6f < 0 — метод дихотомии гарантированно сходится", fa*fb),
-			}
+			return MethodResult{c, i + 1, true, "Метод сошёлся"}
 		}
 		if fa*fc < 0 {
 			b, fb = c, fc
@@ -458,7 +402,7 @@ func bisection(a, b, eps float64, maxIter int) MethodResult {
 			a, fa = c, fc
 		}
 	}
-	return MethodResult{Root: (a + b) / 2, Iterations: maxIter, Converged: false, Message: "Не сошелся за maxIter"}
+	return MethodResult{(a + b) / 2, maxIter, false, "Не сошелся за maxIter"}
 }
 
 func main() {
@@ -554,25 +498,25 @@ func main() {
 	)
 
 	// Метод секущих
-	x0Entry3 := widget.NewEntry()
-	x0Entry3.SetText("1.0")
-	x1Entry3 := widget.NewEntry()
-	x1Entry3.SetText("1.5")
+	aEntry3 := widget.NewEntry()
+	aEntry3.SetText("1.0")
+	bEntry3 := widget.NewEntry()
+	bEntry3.SetText("1.5")
 	result3 := widget.NewLabel("")
 	resultLabels = append(resultLabels, result3)
 
 	solve3Btn := widget.NewButton("Найти решение", func() {
 		eps, _ := strconv.ParseFloat(epsEntry.Text, 64)
-		x0, _ := strconv.ParseFloat(x0Entry3.Text, 64)
-		x1, _ := strconv.ParseFloat(x1Entry3.Text, 64)
-		res := secant(x0, x1, eps, 1000)
+		a, _ := strconv.ParseFloat(aEntry3.Text, 64)
+		b, _ := strconv.ParseFloat(bEntry3.Text, 64)
+		res := secant(a, b, eps, 1000)
 		result3.SetText(fmt.Sprintf("Корень: x = %.6f\nИтераций: %d\n%s", res.Root, res.Iterations, res.Message))
 	})
 
 	method3 := container.NewVBox(
 		widget.NewLabel("Метод секущих"),
-		container.NewHBox(widget.NewLabel("x₀:"), x0Entry3),
-		container.NewHBox(widget.NewLabel("x₁:"), x1Entry3),
+		container.NewHBox(widget.NewLabel("a:"), aEntry3),
+		container.NewHBox(widget.NewLabel("b:"), bEntry3),
 		solve3Btn,
 		result3,
 	)
