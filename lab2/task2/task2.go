@@ -97,14 +97,14 @@ type SystemResult struct {
 // Метод Ньютона
 func newtonSystem(x0, y0, eps float64, maxIter int) SystemResult {
 	x, y := x0, y0
+	J := jacobian(x, y)
+	Jinv, ok := inverse2x2(J)
+	if !ok {
+		return SystemResult{x, y, 0, false, "❌ Матрица Якоби вырожденная"}
+	}
 
 	for i := 0; i < maxIter; i++ {
 		f1, f2 := F1(x, y), F2(x, y)
-		J := jacobian(x, y)
-		Jinv, ok := inverse2x2(J)
-		if !ok {
-			return SystemResult{x, y, i, false, "❌ Матрица Якоби вырожденная"}
-		}
 
 		delta := mulMatVec(Jinv, Vector2{-f1, -f2})
 		x += delta[0]
@@ -505,7 +505,7 @@ func main() {
 	x0Entry1 := widget.NewEntry()
 	x0Entry1.SetText("1.0")
 	y0Entry1 := widget.NewEntry()
-	y0Entry1.SetText("1.0")
+	y0Entry1.SetText("-1.0")
 	result1 := widget.NewLabel("")
 	resultLabels = append(resultLabels, result1)
 
