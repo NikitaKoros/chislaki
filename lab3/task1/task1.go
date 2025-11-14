@@ -12,13 +12,15 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// Данные таблицы
 var xi = []float64{-1.96, -1.43, -0.90, -0.37, 0.16, 0.69, 1.22, 1.75, 2.28}
 var yi = []float64{1.3285, 0.4115, 0.9257, 3.1650, 2.9814, 3.7017, 3.3645, 3.0563, 1.4286}
 
 const xStar = -0.718
 
-// Базисный полином Лагранжа li(x)
+// Выбор
+var quadraticVariant = 2 // 1=LeftInterval, 2=RightInterval
+var cubicVariant = 3     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
+
 func lagrangeBasis(i int, x float64, xNodes []float64) float64 {
 	result := 1.0
 	for j := 0; j < len(xNodes); j++ {
@@ -29,7 +31,6 @@ func lagrangeBasis(i int, x float64, xNodes []float64) float64 {
 	return result
 }
 
-// Интерполяционный многочлен Лагранжа
 func lagrangePolynomial(x float64, xNodes, yNodes []float64) float64 {
 	result := 0.0
 	for i := 0; i < len(xNodes); i++ {
@@ -38,55 +39,122 @@ func lagrangePolynomial(x float64, xNodes, yNodes []float64) float64 {
 	return result
 }
 
-// Построение многочлена степени n по узлам около точки x*
-func buildPolynomial(degree int, xStar float64) ([]float64, []float64, float64) {
-	// Находим ближайшие узлы к x*
-	n := degree + 1
-	distances := make([]struct {
-		idx  int
-		dist float64
-	}, len(xi))
-
-	for i := 0; i < len(xi); i++ {
-		distances[i].idx = i
-		distances[i].dist = math.Abs(xi[i] - xStar)
-	}
-
-	// Сортируем по расстоянию
-	for i := 0; i < len(distances)-1; i++ {
-		for j := i + 1; j < len(distances); j++ {
-			if distances[j].dist < distances[i].dist {
-				distances[i], distances[j] = distances[j], distances[i]
+func lagrangeBasisDerivative(i int, x float64, xNodes []float64) float64 {
+	result := 0.0
+	for k := 0; k < len(xNodes); k++ {
+		if k != i {
+			prod := 1.0
+			for j := 0; j < len(xNodes); j++ {
+				if j != i && j != k {
+					prod *= (x - xNodes[j]) / (xNodes[i] - xNodes[j])
+				}
 			}
+			result += prod / (xNodes[i] - xNodes[k])
+		}
+	}
+	return result
+}
+
+func lagrangeDerivative(x float64, xNodes, yNodes []float64) float64 {
+	result := 0.0
+	for i := 0; i < len(xNodes); i++ {
+		result += yNodes[i] * lagrangeBasisDerivative(i, x, xNodes)
+	}
+	return result
+}
+
+func buildPolynomial2LeftInterval(xStar float64) ([]float64, []float64, float64) {
+	leftIdx := 0
+	for i := 0; i < len(xi)-1; i++ {
+		if xi[i] <= xStar && xi[i+1] >= xStar {
+			leftIdx = i
+			break
 		}
 	}
 
-	// Выбираем n ближайших узлов
-	xNodes := make([]float64, n)
-	yNodes := make([]float64, n)
-	for i := 0; i < n; i++ {
-		idx := distances[i].idx
-		xNodes[i] = xi[idx]
-		yNodes[i] = yi[idx]
-	}
-
-	// Сортируем узлы по x
-	for i := 0; i < n-1; i++ {
-		for j := i + 1; j < n; j++ {
-			if xNodes[j] < xNodes[i] {
-				xNodes[i], xNodes[j] = xNodes[j], xNodes[i]
-				yNodes[i], yNodes[j] = yNodes[j], yNodes[i]
-			}
-		}
-	}
-
-	// Вычисляем значение в точке x*
+	xNodes := []float64{xi[leftIdx-1], xi[leftIdx], xi[leftIdx+1]}
+	yNodes := []float64{yi[leftIdx-1], yi[leftIdx], yi[leftIdx+1]}
 	value := lagrangePolynomial(xStar, xNodes, yNodes)
-
 	return xNodes, yNodes, value
 }
 
-// Создание графика
+func buildPolynomial2RightInterval(xStar float64) ([]float64, []float64, float64) {
+	leftIdx := 0
+	for i := 0; i < len(xi)-1; i++ {
+		if xi[i] <= xStar && xi[i+1] >= xStar {
+			leftIdx = i
+			break
+		}
+	}
+
+	xNodes := []float64{xi[leftIdx], xi[leftIdx+1], xi[leftIdx+2]}
+	yNodes := []float64{yi[leftIdx], yi[leftIdx+1], yi[leftIdx+2]}
+	value := lagrangePolynomial(xStar, xNodes, yNodes)
+	return xNodes, yNodes, value
+}
+
+func buildPolynomial3LeftAndTwoRight(xStar float64) ([]float64, []float64, float64) {
+	leftIdx := 0
+	for i := 0; i < len(xi)-1; i++ {
+		if xi[i] <= xStar && xi[i+1] >= xStar {
+			leftIdx = i
+			break
+		}
+	}
+
+	xNodes := []float64{xi[leftIdx], xi[leftIdx+1], xi[leftIdx+2], xi[leftIdx+3]}
+	yNodes := []float64{yi[leftIdx], yi[leftIdx+1], yi[leftIdx+2], yi[leftIdx+3]}
+	value := lagrangePolynomial(xStar, xNodes, yNodes)
+	return xNodes, yNodes, value
+}
+
+func buildPolynomial3Middle(xStar float64) ([]float64, []float64, float64) {
+	leftIdx := 0
+	for i := 0; i < len(xi)-1; i++ {
+		if xi[i] <= xStar && xi[i+1] >= xStar {
+			leftIdx = i
+			break
+		}
+	}
+
+	xNodes := []float64{xi[leftIdx-1], xi[leftIdx], xi[leftIdx+1], xi[leftIdx+2]}
+	yNodes := []float64{yi[leftIdx-1], yi[leftIdx], yi[leftIdx+1], yi[leftIdx+2]}
+	value := lagrangePolynomial(xStar, xNodes, yNodes)
+	return xNodes, yNodes, value
+}
+
+func buildPolynomial3RightAndTwoSides(xStar float64) ([]float64, []float64, float64) {
+	leftIdx := 0
+	for i := 0; i < len(xi)-1; i++ {
+		if xi[i] <= xStar && xi[i+1] >= xStar {
+			leftIdx = i
+			break
+		}
+	}
+
+	xNodes := []float64{xi[leftIdx-2], xi[leftIdx-1], xi[leftIdx], xi[leftIdx+1]}
+	yNodes := []float64{yi[leftIdx-2], yi[leftIdx-1], yi[leftIdx], yi[leftIdx+1]}
+	value := lagrangePolynomial(xStar, xNodes, yNodes)
+	return xNodes, yNodes, value
+}
+
+func buildPolynomial(degree int, xStar float64) ([]float64, []float64, float64) {
+	if degree == 2 {
+		if quadraticVariant == 2 {
+			return buildPolynomial2RightInterval(xStar)
+		}
+		return buildPolynomial2LeftInterval(xStar)
+	}
+	switch cubicVariant {
+	case 2:
+		return buildPolynomial3Middle(xStar)
+	case 3:
+		return buildPolynomial3RightAndTwoSides(xStar)
+	default:
+		return buildPolynomial3LeftAndTwoRight(xStar)
+	}
+}
+
 func createPlot() *fyne.Container {
 	plotCanvas := canvas.NewRectangle(color.White)
 	plotCanvas.Resize(fyne.NewSize(800, 500))
@@ -110,7 +178,6 @@ func createPlot() *fyne.Container {
 		return float32(marginTop + (yMax-y)*scale)
 	}
 
-	// Сетка
 	gridColor := color.RGBA{220, 220, 220, 255}
 	for x := math.Ceil(xMin); x <= math.Floor(xMax); x++ {
 		gridLine := canvas.NewLine(gridColor)
@@ -127,14 +194,12 @@ func createPlot() *fyne.Container {
 		objects = append(objects, gridLine)
 	}
 
-	// Оси
 	xAxis := canvas.NewLine(color.Black)
 	xAxis.Position1 = fyne.NewPos(xToPixel(xMin), yToPixel(0))
 	xAxis.Position2 = fyne.NewPos(xToPixel(xMax), yToPixel(0))
 	xAxis.StrokeWidth = 2
 	objects = append(objects, xAxis)
 
-	// Стрелка оси X
 	arrowX1 := canvas.NewLine(color.Black)
 	arrowX1.Position1 = fyne.NewPos(xToPixel(xMax), yToPixel(0))
 	arrowX1.Position2 = fyne.NewPos(xToPixel(xMax)-8, yToPixel(0)+4)
@@ -152,7 +217,6 @@ func createPlot() *fyne.Container {
 	yAxis.StrokeWidth = 2
 	objects = append(objects, yAxis)
 
-	// Стрелка оси Y
 	arrowY1 := canvas.NewLine(color.Black)
 	arrowY1.Position1 = fyne.NewPos(xToPixel(0), yToPixel(yMax))
 	arrowY1.Position2 = fyne.NewPos(xToPixel(0)-4, yToPixel(yMax)+8)
@@ -164,7 +228,6 @@ func createPlot() *fyne.Container {
 	arrowY2.StrokeWidth = 2
 	objects = append(objects, arrowY2)
 
-	// Метки осей
 	for x := math.Ceil(xMin); x <= math.Floor(xMax); x++ {
 		if x != 0 {
 			label := canvas.NewText(fmt.Sprintf("%.0f", x), color.Black)
@@ -182,7 +245,6 @@ func createPlot() *fyne.Container {
 		}
 	}
 
-	// Подписи осей
 	xLabel := canvas.NewText("x", color.Black)
 	xLabel.TextSize = 14
 	xLabel.Move(fyne.NewPos(xToPixel(xMax)+10, yToPixel(0)-10))
@@ -198,9 +260,7 @@ func createPlot() *fyne.Container {
 	zeroLabel.Move(fyne.NewPos(xToPixel(0)-15, yToPixel(0)+10))
 	objects = append(objects, zeroLabel)
 
-	// Многочлен 2-й степени (синий)
 	xNodes2, yNodes2, _ := buildPolynomial(2, xStar)
-	//xNodes2, yNodes2 := xi, yi
 
 	steps := 500
 	xMin2, xMax2 := xNodes2[0], xNodes2[len(xNodes2)-1]
@@ -217,8 +277,11 @@ func createPlot() *fyne.Container {
 		objects = append(objects, line)
 	}
 
-	// Многочлен 3-й степени (красный)
 	xNodes3, yNodes3, _ := buildPolynomial(3, xStar)
+
+	fmt.Println("Quadratic nodes:", xNodes2)
+	fmt.Println("Cubic nodes:", xNodes3)
+
 	xMin3, xMax3 := xNodes3[0], xNodes3[len(xNodes3)-1]
 	for i := 0; i < steps-1; i++ {
 		x1 := xMin3 + float64(i)*(xMax3-xMin3)/float64(steps)
@@ -233,7 +296,6 @@ func createPlot() *fyne.Container {
 		objects = append(objects, line)
 	}
 
-	// Точки данных (черные кружки)
 	for i := 0; i < len(xi); i++ {
 		if xi[i] >= xMin && xi[i] <= xMax && yi[i] >= yMin && yi[i] <= yMax {
 			circle := canvas.NewCircle(color.Black)
@@ -246,20 +308,17 @@ func createPlot() *fyne.Container {
 		}
 	}
 
-	// Точка интерполяции x* (зеленый крест)
 	_, _, y2 := buildPolynomial(2, xStar)
 	_, _, y3 := buildPolynomial(3, xStar)
 	yAvg := (y2 + y3) / 2
 
 	if xStar >= xMin && xStar <= xMax && yAvg >= yMin && yAvg <= yMax {
-		// Вертикальная линия креста
 		vLine := canvas.NewLine(color.RGBA{0, 200, 0, 255})
 		vLine.Position1 = fyne.NewPos(xToPixel(xStar), yToPixel(yAvg)-8)
 		vLine.Position2 = fyne.NewPos(xToPixel(xStar), yToPixel(yAvg)+8)
 		vLine.StrokeWidth = 3
 		objects = append(objects, vLine)
 
-		// Горизонтальная линия креста
 		hLine := canvas.NewLine(color.RGBA{0, 200, 0, 255})
 		hLine.Position1 = fyne.NewPos(xToPixel(xStar)-8, yToPixel(yAvg))
 		hLine.Position2 = fyne.NewPos(xToPixel(xStar)+8, yToPixel(yAvg))
@@ -270,11 +329,9 @@ func createPlot() *fyne.Container {
 	return container.NewWithoutLayout(objects...)
 }
 
-// Создание таблицы данных
 func createDataTable() *fyne.Container {
 	var rows []fyne.CanvasObject
 
-	// Строка i
 	iRow := []fyne.CanvasObject{
 		widget.NewLabelWithStyle("i:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
@@ -283,7 +340,6 @@ func createDataTable() *fyne.Container {
 	}
 	rows = append(rows, container.NewHBox(iRow...))
 
-	// Строка xi
 	xiRow := []fyne.CanvasObject{
 		widget.NewLabelWithStyle("xi:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
@@ -292,7 +348,6 @@ func createDataTable() *fyne.Container {
 	}
 	rows = append(rows, container.NewHBox(xiRow...))
 
-	// Строка yi
 	yiRow := []fyne.CanvasObject{
 		widget.NewLabelWithStyle("yi:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
@@ -311,39 +366,64 @@ func main() {
 
 	plot := createPlot()
 
-	// Вычисляем результаты
-	xNodes2, _, value2 := buildPolynomial(2, xStar)
-	xNodes3, _, value3 := buildPolynomial(3, xStar)
+	xNodes2, yNodes2, value2 := buildPolynomial(2, xStar)
+	xNodes3, yNodes3, value3 := buildPolynomial(3, xStar)
 
-	// Проверка в узловой точке (берем первый узел из многочлена 2-й степени)
-	xNodes2Check, yNodes2Check, _ := buildPolynomial(2, xStar)
-	checkX := xNodes2Check[0]
+	deriv2 := lagrangeDerivative(xStar, xNodes2, yNodes2)
+	deriv3 := lagrangeDerivative(xStar, xNodes3, yNodes3)
+
+	boundaryX := xNodes2[len(xNodes2)-1]
+	deriv2AtBoundary := lagrangeDerivative(boundaryX, xNodes2, yNodes2)
+	deriv3AtBoundary := lagrangeDerivative(boundaryX, xNodes3, yNodes3)
+
+	checkX := xi[2]
+	xNodes2Check, yNodes2Check, _ := buildPolynomial(2, checkX)
 	checkValue := lagrangePolynomial(checkX, xNodes2Check, yNodes2Check)
+	originalY := yi[2]
 
-	// Находим исходное значение
-	var originalY float64
-	for i := 0; i < len(xi); i++ {
-		if math.Abs(xi[i]-checkX) < 1e-10 {
-			originalY = yi[i]
-			break
-		}
+	var quad2Name, cubic3Name string
+	if quadraticVariant == 1 {
+		quad2Name = "LeftInterval"
+	} else {
+		quad2Name = "RightInterval"
+	}
+	switch cubicVariant {
+	case 1:
+		cubic3Name = "LeftAndTwoRight"
+	case 2:
+		cubic3Name = "Middle"
+	case 3:
+		cubic3Name = "RightAndTwoSides"
 	}
 
-	// Результаты
-	result2Text := fmt.Sprintf("Многочлен 2-й степени:\nУзлы: ")
+	result2Text := fmt.Sprintf("Многочлен 2-й степени (вариант: %s):\nУзлы: ", quad2Name)
 	for i, x := range xNodes2 {
 		result2Text += fmt.Sprintf("x%d=%.2f ", i, x)
 	}
-	result2Text += fmt.Sprintf("\nL₂(%.3f) = %.6f", xStar, value2)
+	result2Text += fmt.Sprintf("\nL₂(%.3f) = %.6f\nL₂'(%.3f) = %.6f", xStar, value2, xStar, deriv2)
 
-	result3Text := fmt.Sprintf("Многочлен 3-й степени:\nУзлы: ")
+	result3Text := fmt.Sprintf("Многочлен 3-й степени (вариант: %s):\nУзлы: ", cubic3Name)
 	for i, x := range xNodes3 {
 		result3Text += fmt.Sprintf("x%d=%.2f ", i, x)
 	}
-	result3Text += fmt.Sprintf("\nL₃(%.3f) = %.6f", xStar, value3)
+	result3Text += fmt.Sprintf("\nL₃(%.3f) = %.6f\nL₃'(%.3f) = %.6f", xStar, value3, xStar, deriv3)
 
 	checkText := fmt.Sprintf("Проверка в узловой точке x=%.2f:\nL₂(%.2f) = %.6f\nИсходное значение: %.4f\nПогрешность: %.2e",
 		checkX, checkX, checkValue, originalY, math.Abs(checkValue-originalY))
+
+	continuityText := fmt.Sprintf("Проверка непрерывности производной:\nТочка: x=%.2f\nL₂'(%.2f) = %.6f\nL₃'(%.2f) = %.6f\nРазность: %.2e",
+		boundaryX, boundaryX, deriv2AtBoundary, boundaryX, deriv3AtBoundary, math.Abs(deriv2AtBoundary-deriv3AtBoundary))
+
+	variantsText := `Варианты выбора узлов (измените переменные в начале файла):
+
+Квадратичный (quadraticVariant):
+1 - LeftInterval: x* в левом интервале [i-1, i, i+1]
+2 - RightInterval: x* в правом интервале [i, i+1, i+2]
+
+Кубический (cubicVariant):
+1 - LeftAndTwoRight: x* слева, 2 справа [i, i+1, i+2, i+3]
+2 - Middle: x* в среднем [i-1, i, i+1, i+2]
+3 - RightAndTwoSides: x* справа, 2 по бокам [i-1, i, i+1, i+2]`
 
 	plotContainer := container.NewVBox(
 		widget.NewLabel("График интерполяционных многочленов"),
@@ -361,7 +441,11 @@ func main() {
 		widget.NewSeparator(),
 		widget.NewLabel(checkText),
 		widget.NewSeparator(),
+		widget.NewLabel(continuityText),
+		widget.NewSeparator(),
 		widget.NewLabel(fmt.Sprintf("Точка интерполяции: x* = %.3f", xStar)),
+		widget.NewSeparator(),
+		widget.NewLabel(variantsText),
 	)
 
 	dataTable := createDataTable()
