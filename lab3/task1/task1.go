@@ -39,26 +39,57 @@ func lagrangePolynomial(x float64, xNodes, yNodes []float64) float64 {
 	return result
 }
 
-func lagrangeBasisDerivative(i int, x float64, xNodes []float64) float64 {
-	result := 0.0
-	for k := 0; k < len(xNodes); k++ {
-		if k != i {
-			prod := 1.0
-			for j := 0; j < len(xNodes); j++ {
-				if j != i && j != k {
-					prod *= (x - xNodes[j]) / (xNodes[i] - xNodes[j])
+func lagrangePolynomialString(xNodes, yNodes []float64) string {
+	var parts []string
+
+	for i := 0; i < len(yNodes); i++ {
+		// Числитель базисного многочлена
+		numerator := fmt.Sprintf("%.4f", math.Abs(yNodes[i]))
+		for j := 0; j < len(xNodes); j++ {
+			if j != i {
+				if xNodes[j] >= 0 {
+					numerator += fmt.Sprintf("(x-%.2f)", xNodes[j])
+				} else {
+					numerator += fmt.Sprintf("(x+%.2f)", math.Abs(xNodes[j]))
 				}
 			}
-			result += prod / (xNodes[i] - xNodes[k])
 		}
-	}
-	return result
-}
 
-func lagrangeDerivative(x float64, xNodes, yNodes []float64) float64 {
-	result := 0.0
-	for i := 0; i < len(xNodes); i++ {
-		result += yNodes[i] * lagrangeBasisDerivative(i, x, xNodes)
+		// Знаменатель базисного многочлена
+		denominator := ""
+		for j := 0; j < len(xNodes); j++ {
+			if j != i {
+				diff := xNodes[i] - xNodes[j]
+				denominator += fmt.Sprintf("(%.2f)", diff)
+			}
+		}
+
+		// Длина дробной черты
+		maxLen := len(numerator)
+		if len(denominator) > maxLen {
+			maxLen = len(denominator)
+		}
+		line := ""
+		for k := 0; k < maxLen-8; k++ {
+			line += "─"
+		}
+
+		// Формируем дробь в столбик
+		sign := ""
+		if yNodes[i] < 0 {
+			sign = "-"
+		}
+		fraction := fmt.Sprintf("%s%s\n%s\n%s", sign, numerator, line, denominator)
+		parts = append(parts, fraction)
+	}
+
+	// Объединяем части через " + "
+	result := ""
+	for i, part := range parts {
+		if i > 0 {
+			result += "\n\n + \n\n"
+		}
+		result += part
 	}
 	return result
 }
@@ -333,10 +364,10 @@ func createDataTable() *fyne.Container {
 	var rows []fyne.CanvasObject
 
 	iRow := []fyne.CanvasObject{
-		widget.NewLabelWithStyle("i:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("i: ", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
 	for i := 0; i < len(xi); i++ {
-		iRow = append(iRow, widget.NewLabel(fmt.Sprintf("%d", i)))
+		iRow = append(iRow, widget.NewLabel(fmt.Sprintf("%8d", i)))
 	}
 	rows = append(rows, container.NewHBox(iRow...))
 
@@ -344,7 +375,7 @@ func createDataTable() *fyne.Container {
 		widget.NewLabelWithStyle("xi:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
 	for i := 0; i < len(xi); i++ {
-		xiRow = append(xiRow, widget.NewLabel(fmt.Sprintf("%.2f", xi[i])))
+		xiRow = append(xiRow, widget.NewLabel(fmt.Sprintf("%8.2f", xi[i])))
 	}
 	rows = append(rows, container.NewHBox(xiRow...))
 
@@ -352,7 +383,7 @@ func createDataTable() *fyne.Container {
 		widget.NewLabelWithStyle("yi:", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	}
 	for i := 0; i < len(yi); i++ {
-		yiRow = append(yiRow, widget.NewLabel(fmt.Sprintf("%.4f", yi[i])))
+		yiRow = append(yiRow, widget.NewLabel(fmt.Sprintf("%8.4f", yi[i])))
 	}
 	rows = append(rows, container.NewHBox(yiRow...))
 
@@ -369,17 +400,8 @@ func main() {
 	xNodes2, yNodes2, value2 := buildPolynomial(2, xStar)
 	xNodes3, yNodes3, value3 := buildPolynomial(3, xStar)
 
-	deriv2 := lagrangeDerivative(xStar, xNodes2, yNodes2)
-	deriv3 := lagrangeDerivative(xStar, xNodes3, yNodes3)
-
-	boundaryX := xNodes2[len(xNodes2)-1]
-	deriv2AtBoundary := lagrangeDerivative(boundaryX, xNodes2, yNodes2)
-	deriv3AtBoundary := lagrangeDerivative(boundaryX, xNodes3, yNodes3)
-
-	checkX := xi[2]
-	xNodes2Check, yNodes2Check, _ := buildPolynomial(2, checkX)
-	checkValue := lagrangePolynomial(checkX, xNodes2Check, yNodes2Check)
-	originalY := yi[2]
+	poly2Str := lagrangePolynomialString(xNodes2, yNodes2)
+	poly3Str := lagrangePolynomialString(xNodes3, yNodes3)
 
 	var quad2Name, cubic3Name string
 	if quadraticVariant == 1 {
@@ -396,23 +418,31 @@ func main() {
 		cubic3Name = "RightAndTwoSides"
 	}
 
-	result2Text := fmt.Sprintf("Многочлен 2-й степени (вариант: %s):\nУзлы: ", quad2Name)
+	result2Text := fmt.Sprintf("Многочлен Лагранжа 2-й степени (вариант: %s):\nУзлы: ", quad2Name)
 	for i, x := range xNodes2 {
 		result2Text += fmt.Sprintf("x%d=%.2f ", i, x)
 	}
-	result2Text += fmt.Sprintf("\nL₂(%.3f) = %.6f\nL₂'(%.3f) = %.6f", xStar, value2, xStar, deriv2)
+	result2Text += fmt.Sprintf("\n\nL₂(x) = \n%s\n\nL₂(%.3f) = %.6f", poly2Str, xStar, value2)
 
-	result3Text := fmt.Sprintf("Многочлен 3-й степени (вариант: %s):\nУзлы: ", cubic3Name)
+	result3Text := fmt.Sprintf("Многочлен Лагранжа 3-й степени (вариант: %s):\nУзлы: ", cubic3Name)
 	for i, x := range xNodes3 {
 		result3Text += fmt.Sprintf("x%d=%.2f ", i, x)
 	}
-	result3Text += fmt.Sprintf("\nL₃(%.3f) = %.6f\nL₃'(%.3f) = %.6f", xStar, value3, xStar, deriv3)
+	result3Text += fmt.Sprintf("\n\nL₃(x) = \n%s\n\nL₃(%.3f) = %.6f", poly3Str, xStar, value3)
 
-	checkText := fmt.Sprintf("Проверка в узловой точке x=%.2f:\nL₂(%.2f) = %.6f\nИсходное значение: %.4f\nПогрешность: %.2e",
-		checkX, checkX, checkValue, originalY, math.Abs(checkValue-originalY))
+	checkText := "Проверка в узловых точках:\n\nДля L₂(x):\n"
+	for i := 0; i < len(xNodes2); i++ {
+		p := lagrangePolynomial(xNodes2[i], xNodes2, yNodes2)
+		checkText += fmt.Sprintf("  x=%.2f: L₂(x)=%.6f, y=%.4f\n", xNodes2[i], p, yNodes2[i])
+	}
+	checkText += "\nДля L₃(x):\n"
+	for i := 0; i < len(xNodes3); i++ {
+		p := lagrangePolynomial(xNodes3[i], xNodes3, yNodes3)
+		checkText += fmt.Sprintf("  x=%.2f: L₃(x)=%.6f, y=%.4f\n", xNodes3[i], p, yNodes3[i])
+	}
 
-	continuityText := fmt.Sprintf("Проверка непрерывности производной:\nТочка: x=%.2f\nL₂'(%.2f) = %.6f\nL₃'(%.2f) = %.6f\nРазность: %.2e",
-		boundaryX, boundaryX, deriv2AtBoundary, boundaryX, deriv3AtBoundary, math.Abs(deriv2AtBoundary-deriv3AtBoundary))
+	comparisonText := fmt.Sprintf("Сравнение результатов:\n\nL₂(%.3f) = %.6f\nL₃(%.3f) = %.6f\nРазница |L₃ - L₂| = %.6f",
+		xStar, value2, xStar, value3, math.Abs(value3-value2))
 
 	variantsText := `Варианты выбора узлов (измените переменные в начале файла):
 
@@ -441,7 +471,7 @@ func main() {
 		widget.NewSeparator(),
 		widget.NewLabel(checkText),
 		widget.NewSeparator(),
-		widget.NewLabel(continuityText),
+		widget.NewLabel(comparisonText),
 		widget.NewSeparator(),
 		widget.NewLabel(fmt.Sprintf("Точка интерполяции: x* = %.3f", xStar)),
 		widget.NewSeparator(),
