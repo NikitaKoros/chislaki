@@ -19,7 +19,7 @@ const xStar = -0.718
 
 // Выбор
 var quadraticVariant = 1 // 1=LeftInterval, 2=RightInterval
-var cubicVariant = 1     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
+var cubicVariant = 3     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
 
 func buildPolynomial2LeftInterval(xStar float64) ([]float64, []float64, float64) {
 	leftIdx := 0

@@ -19,7 +19,7 @@ const xStar = -0.718
 
 // Выбор
 var quadraticVariant = 2 // 1=LeftInterval, 2=RightInterval
-var cubicVariant = 3     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
+var cubicVariant = 1     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
 
 func lagrangeBasis(i int, x float64, xNodes []float64) float64 {
 	result := 1.0
@@ -43,7 +43,6 @@ func lagrangePolynomialString(xNodes, yNodes []float64) string {
 	var parts []string
 
 	for i := 0; i < len(yNodes); i++ {
-		// Числитель базисного многочлена
 		numerator := fmt.Sprintf("%.4f", math.Abs(yNodes[i]))
 		for j := 0; j < len(xNodes); j++ {
 			if j != i {
@@ -55,7 +54,6 @@ func lagrangePolynomialString(xNodes, yNodes []float64) string {
 			}
 		}
 
-		// Знаменатель базисного многочлена
 		denominator := ""
 		for j := 0; j < len(xNodes); j++ {
 			if j != i {
@@ -64,7 +62,6 @@ func lagrangePolynomialString(xNodes, yNodes []float64) string {
 			}
 		}
 
-		// Длина дробной черты
 		maxLen := len(numerator)
 		if len(denominator) > maxLen {
 			maxLen = len(denominator)
@@ -74,7 +71,6 @@ func lagrangePolynomialString(xNodes, yNodes []float64) string {
 			line += "─"
 		}
 
-		// Формируем дробь в столбик
 		sign := ""
 		if yNodes[i] < 0 {
 			sign = "-"
@@ -83,7 +79,6 @@ func lagrangePolynomialString(xNodes, yNodes []float64) string {
 		parts = append(parts, fraction)
 	}
 
-	// Объединяем части через " + "
 	result := ""
 	for i, part := range parts {
 		if i > 0 {

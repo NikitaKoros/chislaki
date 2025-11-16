@@ -219,29 +219,7 @@ func simpleIterationInterval(a, b, eps float64, maxIter int) MethodResult {
 		return MethodResult{0, 0, false, fmt.Sprintf("❌ f(a)*f(b)=%.6f >= 0 — функция не меняет знак на [a,b]", fa*fb)}
 	}
 
-	// Оценка диапазона производной на отрезке
-	samples := 101
-	minDf, maxDf := math.Inf(1), math.Inf(-1)
-	for i := 0; i < samples; i++ {
-		x := a + (b-a)*float64(i)/float64(samples-1)
-		dfx := df(x)
-		if dfx < minDf {
-			minDf = dfx
-		}
-		if dfx > maxDf {
-			maxDf = dfx
-		}
-	}
-
-	// Выбор оптимального lambda
-	var lambda float64
-	if minDf > 0 && maxDf > 0 {
-		lambda = 2 / (minDf + maxDf)
-	} else if minDf < 0 && maxDf < 0 {
-		lambda = 2 / (minDf + maxDf)
-	} else {
-		lambda = 0.5 / math.Max(math.Abs(minDf), math.Abs(maxDf))
-	}
+	lambda := 0.2
 
 	// Проверка условия сходимости |φ'(x)| < 1
 	dPhiA := math.Abs(dphi(a, lambda))
@@ -275,28 +253,29 @@ func simpleIterationInterval(a, b, eps float64, maxIter int) MethodResult {
 // Метод Ньютона
 func newtonInterval(a, b, eps float64, maxIter int) MethodResult {
 	fa, fb := f(a), f(b)
-
-	// Проверка смены знака
 	if fa*fb >= 0 {
 		return MethodResult{0, 0, false, fmt.Sprintf("❌ f(a)*f(b)=%.6f >= 0 — функция не меняет знак на [a,b]", fa*fb)}
 	}
 
-	// Проверка условия сходимости и выбор начальной точки
-	dfa := df(a)
-	d2fa := ddf(a)
+	dfa, dfb := df(a), df(b)
+	d2fa, d2fb := ddf(a), ddf(b)
 	condA := math.Abs(fa*d2fa) < dfa*dfa
-
-	dfb := df(b)
-	d2fb := ddf(b)
 	condB := math.Abs(fb*d2fb) < dfb*dfb
 
 	var x float64
-	if condA {
+	if condA && condB {
+		// Выбираем по знаку f(x)*f''(x)
+		if fa*d2fa > 0 {
+			x = a
+		} else {
+			x = b
+		}
+	} else if condA {
 		x = a
 	} else if condB {
 		x = b
 	} else {
-		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке a, ни в точке b"}
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в одной точке"}
 	}
 
 	// Итерации Ньютона
@@ -315,34 +294,49 @@ func newtonInterval(a, b, eps float64, maxIter int) MethodResult {
 	return MethodResult{x, maxIter, false, "Не сошёлся за maxIter"}
 }
 
-// Метод секущих
-func secant(x0, x1, eps float64, maxIter int) MethodResult {
-	// Проверка условия сходимости и выбор точек
-	fx0 := f(x0)
-	dfx0 := df(x0)
-	d2fx0 := ddf(x0)
-	cond0 := math.Abs(fx0*d2fx0) < dfx0*dfx0
+// Метод секущих с улучшенным выбором начальных точек
+func secant(a, b, eps float64, maxIter int) MethodResult {
+	fa, fb := f(a), f(b)
+	d2fa, d2fb := ddf(a), ddf(b)
+	dfa, dfb := df(a), df(b)
 
-	fx1 := f(x1)
-	dfx1 := df(x1)
-	d2fx1 := ddf(x1)
-	cond1 := math.Abs(fx1*d2fx1) < dfx1*dfx1
+	condA := math.Abs(fa*d2fa) < dfa*dfa
+	condB := math.Abs(fb*d2fb) < dfb*dfb
 
-	if !cond0 && !cond1 {
-		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке x₀, ни в точке x₁"}
+	var x0, x1 float64
+	if condA && condB {
+		// Выбор по знаку f*f''
+		if fa*d2fa > 0 {
+			x0, x1 = a, b
+		} else {
+			x0, x1 = b, a
+		}
+	} else if condA {
+		x0, x1 = a, b
+	} else if condB {
+		x0, x1 = b, a
+	} else {
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в одной точке"}
 	}
 
 	for i := 0; i < maxIter; i++ {
+		fx0, fx1 := f(x0), f(x1)
 		if math.Abs(fx1-fx0) < 1e-10 {
 			return MethodResult{Root: x1, Iterations: i, Converged: false, Message: "f(x₁) ≈ f(x₀)"}
 		}
+
+		// Формула метода секущих
 		xNew := x1 - fx1*(x1-x0)/(fx1-fx0)
+
 		if math.Abs(xNew-x1) < eps {
 			return MethodResult{xNew, i + 1, true, "Метод сошёлся"}
 		}
+
+		// Обновление точек для следующей итерации
 		x0, x1 = x1, xNew
 		fx0, fx1 = fx1, f(x1)
 	}
+
 	return MethodResult{Root: x1, Iterations: maxIter, Converged: false, Message: "Не сошелся"}
 }
 
@@ -363,12 +357,18 @@ func chord(a, b, eps float64, maxIter int) MethodResult {
 	condB := math.Abs(fb*d2fb) < dfb*dfb
 
 	var x float64
-	if condA {
+	if condA && condB {
+		if fa*d2fa > 0 {
+			x = a
+		} else {
+			x = b
+		}
+	} else if condA {
 		x = a
 	} else if condB {
 		x = b
 	} else {
-		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в точке a, ни в точке b"}
+		return MethodResult{0, 0, false, "❌ Условие сходимости не выполняется ни в одной точке"}
 	}
 
 	for i := 0; i < maxIter; i++ {

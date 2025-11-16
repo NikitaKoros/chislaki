@@ -172,6 +172,28 @@ func createPlot(coeffs1, coeffs2, coeffs3 []float64) *fyne.Container {
 	yAxis.StrokeWidth = 2
 	objects = append(objects, yAxis)
 
+	arrowY1 := canvas.NewLine(color.Black)
+	arrowY1.Position1 = fyne.NewPos(xToPixel(0), yToPixel(yMax))
+	arrowY1.Position2 = fyne.NewPos(xToPixel(0)-4, yToPixel(yMax)+8)
+	arrowY1.StrokeWidth = 2
+	objects = append(objects, arrowY1)
+	arrowY2 := canvas.NewLine(color.Black)
+	arrowY2.Position1 = fyne.NewPos(xToPixel(0), yToPixel(yMax))
+	arrowY2.Position2 = fyne.NewPos(xToPixel(0)+4, yToPixel(yMax)+8)
+	arrowY2.StrokeWidth = 2
+	objects = append(objects, arrowY2)
+
+	arrowX1 := canvas.NewLine(color.Black)
+	arrowX1.Position1 = fyne.NewPos(xToPixel(xMax), yToPixel(0))
+	arrowX1.Position2 = fyne.NewPos(xToPixel(xMax)-8, yToPixel(0)+4)
+	arrowX1.StrokeWidth = 2
+	objects = append(objects, arrowX1)
+	arrowX2 := canvas.NewLine(color.Black)
+	arrowX2.Position1 = fyne.NewPos(xToPixel(xMax), yToPixel(0))
+	arrowX2.Position2 = fyne.NewPos(xToPixel(xMax)-8, yToPixel(0)-4)
+	arrowX2.StrokeWidth = 2
+	objects = append(objects, arrowX2)
+
 	for x := math.Ceil(xMin); x <= math.Floor(xMax); x++ {
 		if x != 0 {
 			label := canvas.NewText(fmt.Sprintf("%.0f", x), color.Black)
@@ -188,6 +210,21 @@ func createPlot(coeffs1, coeffs2, coeffs3 []float64) *fyne.Container {
 			objects = append(objects, label)
 		}
 	}
+
+	xLabel := canvas.NewText("x", color.Black)
+	xLabel.TextSize = 14
+	xLabel.Move(fyne.NewPos(xToPixel(xMax)+10, yToPixel(0)-10))
+	objects = append(objects, xLabel)
+
+	yLabel := canvas.NewText("y", color.Black)
+	yLabel.TextSize = 14
+	yLabel.Move(fyne.NewPos(xToPixel(0)+10, yToPixel(yMax)-10))
+	objects = append(objects, yLabel)
+
+	zeroLabel := canvas.NewText("0", color.Black)
+	zeroLabel.TextSize = 10
+	zeroLabel.Move(fyne.NewPos(xToPixel(0)-15, yToPixel(0)+10))
+	objects = append(objects, zeroLabel)
 
 	steps := 200
 	colors := []color.Color{
@@ -278,32 +315,6 @@ func main() {
 
 	plot := createPlot(coeffs1, coeffs2, coeffs3)
 
-	resultText := fmt.Sprintf("Метод наименьших квадратов (МНК)\nВариант 34\n\n")
-	resultText += fmt.Sprintf("Точка вычисления: x* = %.3f\n\n", xStar)
-	resultText += "=== МНОГОЧЛЕН 1-Й СТЕПЕНИ ===\n"
-	resultText += fmt.Sprintf("F₁(x) = %s\n", polynomialToString(coeffs1))
-	resultText += fmt.Sprintf("Сумма квадратов ошибок: Φ₁ = %.6f\n", error1)
-	resultText += fmt.Sprintf("F₁(%.3f) = %.6f\n\n", xStar, value1)
-
-	resultText += "=== МНОГОЧЛЕН 2-Й СТЕПЕНИ ===\n"
-	resultText += fmt.Sprintf("F₂(x) = %s\n", polynomialToString(coeffs2))
-	resultText += fmt.Sprintf("Сумма квадратов ошибок: Φ₂ = %.6f\n", error2)
-	resultText += fmt.Sprintf("F₂(%.3f) = %.6f\n\n", xStar, value2)
-
-	resultText += "=== МНОГОЧЛЕН 3-Й СТЕПЕНИ ===\n"
-	resultText += fmt.Sprintf("F₃(x) = %s\n", polynomialToString(coeffs3))
-	resultText += fmt.Sprintf("Сумма квадратов ошибок: Φ₃ = %.6f\n", error3)
-	resultText += fmt.Sprintf("F₃(%.3f) = %.6f\n\n", xStar, value3)
-
-	resultText += "=== СРАВНЕНИЕ РЕЗУЛЬТАТОВ ===\n"
-	resultText += fmt.Sprintf("┌──────────┬─────────────────┬────────────────┐\n")
-	resultText += fmt.Sprintf("│ Степень  │ Φ (сумма кв.)   │ F(x*)          │\n")
-	resultText += fmt.Sprintf("├──────────┼─────────────────┼────────────────┤\n")
-	resultText += fmt.Sprintf("│    1     │ %15.8f │ %14.10f │\n", error1, value1)
-	resultText += fmt.Sprintf("│    2     │ %15.8f │ %14.10f │\n", error2, value2)
-	resultText += fmt.Sprintf("│    3     │ %15.8f │ %14.10f │\n", error3, value3)
-	resultText += fmt.Sprintf("└──────────┴─────────────────┴────────────────┘\n\n")
-
 	minError := math.Min(error1, math.Min(error2, error3))
 	bestDegree := 1
 	if error2 == minError {
@@ -312,33 +323,33 @@ func main() {
 	if error3 == minError {
 		bestDegree = 3
 	}
-	resultText += fmt.Sprintf("Наименьшая сумма квадратов ошибок у многочлена %d-й степени: Φ = %.6f\n", bestDegree, minError)
 
-	coeffsText := "=== КОЭФФИЦИЕНТЫ МНОГОЧЛЕНОВ ===\n\n"
-	coeffsText += "Многочлен 1-й степени: F₁(x) = a₀ + a₁·x\n"
+	poly1Text := fmt.Sprintf("Многочлен 1-й степени\nF₁(x) = %s\nСумма квадратов ошибок: Φ₁ = %.6f\nF₁(%.3f) = %.6f", polynomialToString(coeffs1), error1, xStar, value1)
+	poly2Text := fmt.Sprintf("Многочлен 2-й степени\nF₂(x) = %s\nСумма квадратов ошибок: Φ₂ = %.6f\nF₂(%.3f) = %.6f", polynomialToString(coeffs2), error2, xStar, value2)
+	poly3Text := fmt.Sprintf("Многочлен 3-й степени\nF₃(x) = %s\nСумма квадратов ошибок: Φ₃ = %.6f\nF₃(%.3f) = %.6f", polynomialToString(coeffs3), error3, xStar, value3)
+
+	compareText := fmt.Sprintf("Сравнение результатов\n\nСтепень 1:  Φ = %.8f,  F(x*) = %.10f\nСтепень 2:  Φ = %.8f,  F(x*) = %.10f\nСтепень 3:  Φ = %.8f,  F(x*) = %.10f\n\nНаименьшая сумма квадратов ошибок у многочлена %d-й степени: Φ = %.6f", error1, value1, error2, value2, error3, value3, bestDegree, minError)
+
+	coeffs1Text := "Многочлен 1-й степени: F₁(x) = a₀ + a₁·x\n"
 	for i, c := range coeffs1 {
-		coeffsText += fmt.Sprintf("  a%d = %.10f\n", i, c)
+		coeffs1Text += fmt.Sprintf("  a%d = %.10f\n", i, c)
 	}
-	coeffsText += "\nМногочлен 2-й степени: F₂(x) = a₀ + a₁·x + a₂·x²\n"
+	coeffs2Text := "Многочлен 2-й степени: F₂(x) = a₀ + a₁·x + a₂·x²\n"
 	for i, c := range coeffs2 {
-		coeffsText += fmt.Sprintf("  a%d = %.10f\n", i, c)
+		coeffs2Text += fmt.Sprintf("  a%d = %.10f\n", i, c)
 	}
-	coeffsText += "\nМногочлен 3-й степени: F₃(x) = a₀ + a₁·x + a₂·x² + a₃·x³\n"
+	coeffs3Text := "Многочлен 3-й степени: F₃(x) = a₀ + a₁·x + a₂·x² + a₃·x³\n"
 	for i, c := range coeffs3 {
-		coeffsText += fmt.Sprintf("  a%d = %.10f\n", i, c)
+		coeffs3Text += fmt.Sprintf("  a%d = %.10f\n", i, c)
 	}
 
-	checkText := "=== ПРОВЕРКА: ЗНАЧЕНИЯ МНОГОЧЛЕНОВ В УЗЛОВЫХ ТОЧКАХ ===\n\n"
-	checkText += fmt.Sprintf("┌────────┬──────────┬──────────┬──────────┬──────────┐\n")
-	checkText += fmt.Sprintf("│   x    │    y     │   F₁(x)  │   F₂(x)  │   F₃(x)  │\n")
-	checkText += fmt.Sprintf("├────────┼──────────┼──────────┼──────────┼──────────┤\n")
+	checkText := "\n"
 	for i := 0; i < len(xi); i++ {
 		f1 := evaluatePolynomial(coeffs1, xi[i])
 		f2 := evaluatePolynomial(coeffs2, xi[i])
 		f3 := evaluatePolynomial(coeffs3, xi[i])
-		checkText += fmt.Sprintf("│ %6.2f │ %8.4f │ %8.4f │ %8.4f │ %8.4f │\n", xi[i], yi[i], f1, f2, f3)
+		checkText += fmt.Sprintf("x = %6.2f:  y = %8.4f,  F₁(x) = %8.4f,  F₂(x) = %8.4f,  F₃(x) = %8.4f\n", xi[i], yi[i], f1, f2, f3)
 	}
-	checkText += fmt.Sprintf("└────────┴──────────┴──────────┴──────────┴──────────┘\n")
 
 	infoText := `Метод наименьших квадратов (МНК):
 
@@ -364,10 +375,20 @@ F(x) = a₀ + a₁·x + a₂·x² + ... + aₙ·xⁿ
 		plot,
 	)
 
+	headerText := fmt.Sprintf("Метод наименьших квадратов (МНК)\nВариант 34\n\nТочка вычисления: x* = %.3f", xStar)
+
 	resultsContainer := container.NewVBox(
 		widget.NewLabel("Результаты аппроксимации"),
 		widget.NewSeparator(),
-		widget.NewLabel(resultText),
+		widget.NewLabel(headerText),
+		widget.NewSeparator(),
+		widget.NewLabel(poly1Text),
+		widget.NewSeparator(),
+		widget.NewLabel(poly2Text),
+		widget.NewSeparator(),
+		widget.NewLabel(poly3Text),
+		widget.NewSeparator(),
+		widget.NewLabel(compareText),
 		widget.NewSeparator(),
 		widget.NewLabel(infoText),
 	)
@@ -375,11 +396,15 @@ F(x) = a₀ + a₁·x + a₂·x² + ... + aₙ·xⁿ
 	coeffsContainer := container.NewVBox(
 		widget.NewLabel("Коэффициенты многочленов"),
 		widget.NewSeparator(),
-		widget.NewLabel(coeffsText),
+		widget.NewLabel(coeffs1Text),
+		widget.NewSeparator(),
+		widget.NewLabel(coeffs2Text),
+		widget.NewSeparator(),
+		widget.NewLabel(coeffs3Text),
 	)
 
 	checkContainer := container.NewVBox(
-		widget.NewLabel("Проверка в узловых точках"),
+		widget.NewLabel("Значения многочленов в узловых точках"),
 		widget.NewSeparator(),
 		widget.NewLabel(checkText),
 	)

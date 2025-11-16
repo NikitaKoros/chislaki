@@ -53,19 +53,35 @@ func jacobian(x, y float64) Matrix2x2 {
 	}
 }
 
-func det2x2(m Matrix2x2) float64 {
-	return m[0][0]*m[1][1] - m[0][1]*m[1][0]
-}
-
-func inverse2x2(m Matrix2x2) (Matrix2x2, bool) {
-	d := det2x2(m)
-	if math.Abs(d) < 1e-10 {
-		return Matrix2x2{}, false
+// Решение системы Ax = b методом Гаусса
+func solveGauss(A Matrix2x2, b Vector2) (Vector2, bool) {
+	a := [2][3]float64{
+		{A[0][0], A[0][1], b[0]},
+		{A[1][0], A[1][1], b[1]},
 	}
-	return Matrix2x2{
-		{m[1][1] / d, -m[0][1] / d},
-		{-m[1][0] / d, m[0][0] / d},
-	}, true
+
+	// Прямой ход
+	if math.Abs(a[0][0]) < 1e-10 {
+		a[0], a[1] = a[1], a[0]
+	}
+	if math.Abs(a[0][0]) < 1e-10 {
+		return Vector2{}, false
+	}
+
+	factor := a[1][0] / a[0][0]
+	a[1][0] -= factor * a[0][0]
+	a[1][1] -= factor * a[0][1]
+	a[1][2] -= factor * a[0][2]
+
+	if math.Abs(a[1][1]) < 1e-10 {
+		return Vector2{}, false
+	}
+
+	// Обратный ход
+	y := a[1][2] / a[1][1]
+	x := (a[0][2] - a[0][1]*y) / a[0][0]
+
+	return Vector2{x, y}, true
 }
 
 func mulMatVec(m Matrix2x2, v Vector2) Vector2 {
@@ -97,16 +113,16 @@ type SystemResult struct {
 // Метод Ньютона
 func newtonSystem(x0, y0, eps float64, maxIter int) SystemResult {
 	x, y := x0, y0
-	J := jacobian(x, y)
-	Jinv, ok := inverse2x2(J)
-	if !ok {
-		return SystemResult{x, y, 0, false, "❌ Матрица Якоби вырожденная"}
-	}
 
 	for i := 0; i < maxIter; i++ {
 		f1, f2 := F1(x, y), F2(x, y)
+		J := jacobian(x, y)
 
-		delta := mulMatVec(Jinv, Vector2{-f1, -f2})
+		delta, ok := solveGauss(J, Vector2{-f1, -f2})
+		if !ok {
+			return SystemResult{x, y, i, false, "❌ Матрица Якоби вырожденная"}
+		}
+
 		x += delta[0]
 		y += delta[1]
 
@@ -118,6 +134,7 @@ func newtonSystem(x0, y0, eps float64, maxIter int) SystemResult {
 }
 
 var lambda = 0.05
+var d = 0.5 // ширина интервала для проверки условия сходимости
 
 // Итерационные функции φ
 func phi1(x, y float64) float64 {
@@ -156,38 +173,31 @@ func simpleIterationSystem(x0, y0, eps float64, maxIter int) SystemResult {
 	converged := false
 	msg := ""
 
-	// Шаг 1: Оценка условия сходимости в окрестности начальной точки
-	supNorm := 0.0
-	samples := 5
-	radius := 0.2
+	// Проверка условия сходимости в интервале [x0-d, x0+d] x [y0-d, y0+d]
+	ax, bx := x0-d, x0+d
+	ay, by := y0-d, y0+d
 
-	for i := 0; i < samples; i++ {
-		for j := 0; j < samples; j++ {
-			xi := x0 + (-radius + (2*radius)*float64(i)/float64(samples-1))
-			yi := y0 + (-radius + (2*radius)*float64(j)/float64(samples-1))
-
-			// Вычисляем матрицу Якоби в точке (xi, yi)
-			J := Matrix2x2{
-				{dphi1_dx(xi, yi), dphi1_dy(xi, yi)},
-				{dphi2_dx(xi, yi), dphi2_dy(xi, yi)},
-			}
-
-			// Вычисляем норму матрицы (супремум по строкам)
-			row1Norm := math.Abs(J[0][0]) + math.Abs(J[0][1])
-			row2Norm := math.Abs(J[1][0]) + math.Abs(J[1][1])
-			maxRowNorm := math.Max(row1Norm, row2Norm)
-
-			if maxRowNorm > supNorm {
-				supNorm = maxRowNorm
-			}
+	// Проверяем якобиан в углах прямоугольника
+	corners := [][2]float64{{ax, ay}, {ax, by}, {bx, ay}, {bx, by}}
+	convergenceOK := true
+	for _, corner := range corners {
+		xi, yi := corner[0], corner[1]
+		J := Matrix2x2{
+			{dphi1_dx(xi, yi), dphi1_dy(xi, yi)},
+			{dphi2_dx(xi, yi), dphi2_dy(xi, yi)},
+		}
+		row1Norm := math.Abs(J[0][0]) + math.Abs(J[0][1])
+		row2Norm := math.Abs(J[1][0]) + math.Abs(J[1][1])
+		maxRowNorm := math.Max(row1Norm, row2Norm)
+		if maxRowNorm >= 1.0 {
+			convergenceOK = false
+			msg = fmt.Sprintf("❌ ||Φ'|| >= 1 в точке (%.2f, %.2f) — условие сходимости не выполнено", xi, yi)
+			break
 		}
 	}
 
-	// Формируем сообщение о сходимости
-	if supNorm < 1.0 {
-		msg = fmt.Sprintf("✅ sup||Φ'|| ~= %.3f < 1 — условие сходимости выполнено", supNorm)
-	} else {
-		msg = fmt.Sprintf("⚠️ sup||Φ'|| ~= %.3f >= 1 — сходимость не гарантирована", supNorm)
+	if convergenceOK {
+		msg = fmt.Sprintf("✅ ||Φ'|| < 1 в интервале [%.2f, %.2f] x [%.2f, %.2f] — условие сходимости выполнено", ax, bx, ay, by)
 	}
 
 	// Шаг 2: Итерационный процесс
@@ -233,57 +243,61 @@ func seidelSystem(x0, y0, eps float64, maxIter int) SystemResult {
 	converged := false
 
 	J0 := jacobian(x0, y0)
-	B, ok := inverse2x2(J0)
-	if !ok {
-		return SystemResult{x0, y0, 0, false, "❌ J(x0) вырожденная"}
-	}
-
 	omega := 0.05
 
-	// Проверка условия сходимости
-	supNorm := 0.0
-	samples := 5
-	radius := 0.2
+	// Проверка условия сходимости в интервале [x0-d, x0+d] x [y0-d, y0+d]
+	ax, bx := x0-d, x0+d
+	ay, by := y0-d, y0+d
 
-	for i := 0; i < samples; i++ {
-		for j := 0; j < samples; j++ {
-			xi := x0 + (-radius + (2*radius)*float64(i)/float64(samples-1))
-			yi := y0 + (-radius + (2*radius)*float64(j)/float64(samples-1))
+	corners := [][2]float64{{ax, ay}, {ax, by}, {bx, ay}, {bx, by}}
+	convergenceOK := true
+	msg := ""
 
-			Jx := jacobian(xi, yi)
-			BJ := mulMatMat(B, Jx)
-			J := Matrix2x2{
-				{1 - omega*BJ[0][0], -omega * BJ[0][1]},
-				{-omega * BJ[1][0], 1 - omega*BJ[1][1]},
-			}
+	for _, corner := range corners {
+		xi, yi := corner[0], corner[1]
+		Jx := jacobian(xi, yi)
+		BJ00, ok1 := solveGauss(J0, Vector2{Jx[0][0], Jx[1][0]})
+		BJ01, ok2 := solveGauss(J0, Vector2{Jx[0][1], Jx[1][1]})
+		if !ok1 || !ok2 {
+			return SystemResult{x0, y0, 0, false, "❌ J(x0) вырожденная"}
+		}
 
-			row1Norm := math.Abs(J[0][0]) + math.Abs(J[0][1])
-			row2Norm := math.Abs(J[1][0]) + math.Abs(J[1][1])
-			maxRowNorm := math.Max(row1Norm, row2Norm)
+		J := Matrix2x2{
+			{1 - omega*BJ00[0], -omega * BJ01[0]},
+			{-omega * BJ00[1], 1 - omega*BJ01[1]},
+		}
 
-			if maxRowNorm > supNorm {
-				supNorm = maxRowNorm
-			}
+		row1Norm := math.Abs(J[0][0]) + math.Abs(J[0][1])
+		row2Norm := math.Abs(J[1][0]) + math.Abs(J[1][1])
+		maxRowNorm := math.Max(row1Norm, row2Norm)
+
+		if maxRowNorm >= 1.0 {
+			convergenceOK = false
+			msg = fmt.Sprintf("❌ ||Φ'|| >= 1 в точке (%.2f, %.2f) — условие сходимости не выполнено", xi, yi)
+			break
 		}
 	}
 
-	msg := ""
-	if supNorm < 1.0 {
-		msg = fmt.Sprintf("✅ sup||Φ'|| ~= %.3f < 1 — условие сходимости выполнено", supNorm)
-	} else {
-		msg = fmt.Sprintf("⚠️ sup||Φ'|| ~= %.3f >= 1 — сходимость не гарантирована", supNorm)
+	if convergenceOK {
+		msg = fmt.Sprintf("✅ ||Φ'|| < 1 в интервале [%.2f, %.2f] x [%.2f, %.2f] — условие сходимости выполнено", ax, bx, ay, by)
 	}
 
 	// Итерационный процесс
 	for k < maxIter {
 		// Обновляем x
 		Fv := Vector2{F1(x, y), F2(x, y)}
-		B_F := mulMatVec(B, Fv)
+		B_F, ok := solveGauss(J0, Fv)
+		if !ok {
+			return SystemResult{x, y, k, false, "❌ Ошибка решения системы"}
+		}
 		xNew := x - omega*B_F[0]
 
 		// Обновляем y с новым x
 		Fv = Vector2{F1(xNew, y), F2(xNew, y)}
-		B_F = mulMatVec(B, Fv)
+		B_F, ok = solveGauss(J0, Fv)
+		if !ok {
+			return SystemResult{x, y, k, false, "❌ Ошибка решения системы"}
+		}
 		yNew := y - omega*B_F[1]
 
 		// Проверяем сходимость по разнице между итерациями
@@ -533,7 +547,7 @@ func main() {
 	x0Entry2 := widget.NewEntry()
 	x0Entry2.SetText("-1.0")
 	y0Entry2 := widget.NewEntry()
-	y0Entry2.SetText("-1.0")
+	y0Entry2.SetText("-1.5")
 	result2 := widget.NewLabel("")
 	resultLabels = append(resultLabels, result2)
 
