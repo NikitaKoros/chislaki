@@ -71,16 +71,51 @@ func simpsonMethod(fn func(float64) float64, a, b, h float64) float64 {
 	return (sum * h) / 3.0
 }
 
-// Метод Эйлера (уточненный метод трапеций)
-func eulerMethod(fn func(float64) float64, a, b, h float64) float64 {
-	eps := 1e-7
-	fPrimeA := (fn(a+eps) - fn(a-eps)) / (2 * eps)
-	fPrimeB := (fn(b+eps) - fn(b-eps)) / (2 * eps)
+// Производная  (аналитическая)
+func derivative(x float64) float64 {
+	// Исх. функция: (2*sin(2x) - cos(x/4))^2 / sqrt(2x^2 + 5x + 6)
 
-	trapezoid := trapezoidMethod(fn, a, b, h)
+	// u(x) = 2*sin(2x) - cos(x/4)
+	// v(x) = sqrt(2x^2 + 5x + 6)
+	// f(x) = u(x)^2 / v(x)
+
+	// u(x) и её производная
+	u := 2*math.Sin(2*x) - math.Cos(x/4)
+	uPrime := 4*math.Cos(2*x) + 0.25*math.Sin(x/4)
+
+	// v(x) и её производная
+	v := math.Sqrt(2*x*x + 5*x + 6)
+	vPrime := (4*x + 5) / (2 * v)
+
+	// Производная f(x) = (u^2/v):
+	// f'(x) = (2*u*uPrime*v - u^2*vPrime) / v^2
+
+	numerator := 2*u*uPrime*v - u*u*vPrime
+	denominator := v * v
+
+	return numerator / denominator
+}
+
+// Метод Эйлера (Маклорена)
+func eulerMethod(fn func(float64) float64, a, b, h float64) float64 {
+	n := int(math.Ceil((b - a) / h))
+	h = (b - a) / float64(n)
+
+	fPrimeA := derivative(a)
+	fPrimeB := derivative(b)
+
+	// Сначала формула трапеций: h * [(f(a) + f(b))/2 + Sumf(x_i)]
+	sum := (fn(a) + fn(b)) / 2.0
+	for i := 1; i < n; i++ {
+		x := a + float64(i)*h
+		sum += fn(x)
+	}
+	trapezoidPart := sum * h
+
+	// Поправка Эйлера: h^2/12 * [f'(a) - f'(b)]
 	correction := (h * h / 12.0) * (fPrimeA - fPrimeB)
 
-	return trapezoid + correction
+	return trapezoidPart + correction
 }
 
 // Метод Рунге-Ромберга для уточнения результата
@@ -653,20 +688,19 @@ func createEulerPlot(fn func(float64) float64, a, b, h float64, width, height fl
 	h = (b - a) / float64(n)
 	tangentColor := color.RGBA{128, 0, 255, 255}
 
-	eps := 1e-7
 	for i := 0; i <= n; i++ {
 		x0 := a + float64(i)*h
 		y0 := fn(x0)
 
-		// Вычисляем производную численно
-		derivative := (fn(x0+eps) - fn(x0-eps)) / (2 * eps)
+		// Вычисляем производную используя отдельную функцию
+		deriv := derivative(x0)
 
 		// Рисуем касательную линию
 		tangentLen := h * 0.5
 		xStart := x0 - tangentLen
 		xEnd := x0 + tangentLen
-		yStart := y0 - derivative*tangentLen
-		yEnd := y0 + derivative*tangentLen
+		yStart := y0 - deriv*tangentLen
+		yEnd := y0 + deriv*tangentLen
 
 		if yStart >= yMin && yStart <= yMax && yEnd >= yMin && yEnd <= yMax {
 			line := canvas.NewLine(tangentColor)
