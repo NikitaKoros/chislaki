@@ -915,6 +915,90 @@ func main() {
 
 	resultsH1, resultsH2, resultsRR, exact := fullAnalysis(integrandF, a, b, h1)
 
+	// Вывод результатов в терминал
+	fmt.Println("═══════════════════════════════════════════════════════════════════")
+	fmt.Println("                     ЧИСЛЕННОЕ ИНТЕГРИРОВАНИЕ")
+	fmt.Println("═══════════════════════════════════════════════════════════════════")
+	fmt.Println()
+	fmt.Println("Функция: F = (2sin2x - cos(x/4))² / √(2x² + 5x + 6)")
+	fmt.Printf("Интервал: [%.1f, %.1f]\n", a, b)
+	fmt.Printf("Начальный шаг: h = %.2f\n", h1)
+	fmt.Printf("Эталонное значение (Симпсон с h=0.00001): %.10f\n\n", exact)
+
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Printf("РЕЗУЛЬТАТЫ С ШАГОМ h = %.2f\n", resultsH1.h)
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Printf("Метод средних прямоугольников: %16.10f\n", resultsH1.midpoint)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH1.midpoint-exact))
+	fmt.Printf("\nМетод трапеций:                %16.10f\n", resultsH1.trapezoid)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH1.trapezoid-exact))
+	fmt.Printf("\nМетод Симпсона:                %16.10f\n", resultsH1.simpson)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH1.simpson-exact))
+	fmt.Printf("\nМетод Эйлера:                  %16.10f\n", resultsH1.euler)
+	fmt.Printf("  Погрешность:                 %16.6e\n\n", math.Abs(resultsH1.euler-exact))
+
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Printf("РЕЗУЛЬТАТЫ С ШАГОМ h/2 = %.2f\n", resultsH2.h)
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Printf("Метод средних прямоугольников: %16.10f\n", resultsH2.midpoint)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH2.midpoint-exact))
+	fmt.Printf("\nМетод трапеций:                %16.10f\n", resultsH2.trapezoid)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH2.trapezoid-exact))
+	fmt.Printf("\nМетод Симпсона:                %16.10f\n", resultsH2.simpson)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsH2.simpson-exact))
+	fmt.Printf("\nМетод Эйлера:                  %16.10f\n", resultsH2.euler)
+	fmt.Printf("  Погрешность:                 %16.6e\n\n", math.Abs(resultsH2.euler-exact))
+
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Println("УТОЧНЕНИЕ ПО МЕТОДУ РУНГЕ-РОМБЕРГА")
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+	fmt.Printf("Средние прямоугольники (p=2): %16.10f\n", resultsRR.midpointRR)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsRR.midpointRR-exact))
+	if math.Abs(resultsRR.midpointRR-exact) > 0 {
+		fmt.Printf("  Улучшение:                   %16.2fx\n", math.Abs(resultsH2.midpoint-exact)/math.Abs(resultsRR.midpointRR-exact))
+	}
+
+	fmt.Printf("\nТрапеции (p=2):                %16.10f\n", resultsRR.trapezoidRR)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsRR.trapezoidRR-exact))
+	if math.Abs(resultsRR.trapezoidRR-exact) > 0 {
+		fmt.Printf("  Улучшение:                   %16.2fx\n", math.Abs(resultsH2.trapezoid-exact)/math.Abs(resultsRR.trapezoidRR-exact))
+	}
+
+	fmt.Printf("\nСимпсон (p=4):                 %16.10f\n", resultsRR.simpsonRR)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsRR.simpsonRR-exact))
+	if math.Abs(resultsRR.simpsonRR-exact) > 0 {
+		fmt.Printf("  Улучшение:                   %16.2fx\n", math.Abs(resultsH2.simpson-exact)/math.Abs(resultsRR.simpsonRR-exact))
+	}
+
+	fmt.Printf("\nЭйлер (p=2):                   %16.10f\n", resultsRR.eulerRR)
+	fmt.Printf("  Погрешность:                 %16.6e\n", math.Abs(resultsRR.eulerRR-exact))
+	if math.Abs(resultsRR.eulerRR-exact) > 0 {
+		fmt.Printf("  Улучшение:                   %16.2fx\n", math.Abs(resultsH2.euler-exact)/math.Abs(resultsRR.eulerRR-exact))
+	}
+
+	fmt.Println("\n═══════════════════════════════════════════════════════════════════")
+	fmt.Println("                  СРАВНИТЕЛЬНАЯ ТАБЛИЦА МЕТОДОВ")
+	fmt.Println("═══════════════════════════════════════════════════════════════════")
+	fmt.Println()
+
+	fmt.Printf("%-25s | %15s | %15s | %15s\n", "Метод", fmt.Sprintf("h = %.2f", resultsH1.h), fmt.Sprintf("h/2 = %.2f", resultsH2.h), "Рунге-Ромберг")
+	fmt.Println("───────────────────────────────────────────────────────────────────")
+
+	fmt.Printf("%-25s | %15.10f | %15.10f | %15.10f\n", "Средние прямоугольники", resultsH1.midpoint, resultsH2.midpoint, resultsRR.midpointRR)
+	fmt.Printf("%-25s | %15.6e | %15.6e | %15.6e\n\n", "  Погрешность", math.Abs(resultsH1.midpoint-exact), math.Abs(resultsH2.midpoint-exact), math.Abs(resultsRR.midpointRR-exact))
+
+	fmt.Printf("%-25s | %15.10f | %15.10f | %15.10f\n", "Трапеции", resultsH1.trapezoid, resultsH2.trapezoid, resultsRR.trapezoidRR)
+	fmt.Printf("%-25s | %15.6e | %15.6e | %15.6e\n\n", "  Погрешность", math.Abs(resultsH1.trapezoid-exact), math.Abs(resultsH2.trapezoid-exact), math.Abs(resultsRR.trapezoidRR-exact))
+
+	fmt.Printf("%-25s | %15.10f | %15.10f | %15.10f\n", "Симпсон", resultsH1.simpson, resultsH2.simpson, resultsRR.simpsonRR)
+	fmt.Printf("%-25s | %15.6e | %15.6e | %15.6e\n\n", "  Погрешность", math.Abs(resultsH1.simpson-exact), math.Abs(resultsH2.simpson-exact), math.Abs(resultsRR.simpsonRR-exact))
+
+	fmt.Printf("%-25s | %15.10f | %15.10f | %15.10f\n", "Эйлер", resultsH1.euler, resultsH2.euler, resultsRR.eulerRR)
+	fmt.Printf("%-25s | %15.6e | %15.6e | %15.6e\n\n", "  Погрешность", math.Abs(resultsH1.euler-exact), math.Abs(resultsH2.euler-exact), math.Abs(resultsRR.eulerRR-exact))
+
+	fmt.Println("═══════════════════════════════════════════════════════════════════")
+	fmt.Println()
+
 	// Создание вкладок с результатами и сравнением
 	resultsText := createResultsTable(resultsH1, resultsH2, resultsRR, exact)
 	resultsLabel := widget.NewLabel(resultsText)

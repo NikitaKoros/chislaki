@@ -18,8 +18,8 @@ var yi = []float64{1.3285, 0.4115, 0.9257, 3.1650, 2.9814, 3.7017, 3.3645, 3.056
 const xStar = -0.718
 
 // Выбор
-var quadraticVariant = 2 // 1=LeftInterval, 2=RightInterval
-var cubicVariant = 1     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
+var quadraticVariant = 1 // 1=LeftInterval, 2=RightInterval
+var cubicVariant = 2     // 1=LeftAndTwoRight, 2=Middle, 3=RightAndTwoSides
 
 func lagrangeBasis(i int, x float64, xNodes []float64) float64 {
 	result := 1.0

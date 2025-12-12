@@ -313,7 +313,56 @@ func main() {
 	value2 := evaluatePolynomial(coeffs2, xStar)
 	value3 := evaluatePolynomial(coeffs3, xStar)
 
-	plot := createPlot(coeffs1, coeffs2, coeffs3)
+	// Вывод результатов в терминал
+	fmt.Println("=== МЕТОД НАИМЕНЬШИХ КВАДРАТОВ (МНК) ===")
+	fmt.Println("Вариант 34")
+	fmt.Printf("Точка вычисления: x* = %.3f\n\n", xStar)
+
+	fmt.Println("--- Исходные данные ---")
+	fmt.Print("i:  ")
+	for i := 0; i < len(xi); i++ {
+		fmt.Printf("%8d", i)
+	}
+	fmt.Println()
+	fmt.Print("xi: ")
+	for i := 0; i < len(xi); i++ {
+		fmt.Printf("%8.2f", xi[i])
+	}
+	fmt.Println()
+	fmt.Print("yi: ")
+	for i := 0; i < len(yi); i++ {
+		fmt.Printf("%8.4f", yi[i])
+	}
+	fmt.Println("\n")
+
+	fmt.Println("--- Многочлен 1-й степени: F₁(x) = a₀ + a₁·x ---")
+	for i, c := range coeffs1 {
+		fmt.Printf("  a%d = %.10f\n", i, c)
+	}
+	fmt.Printf("F₁(x) = %s\n", polynomialToString(coeffs1))
+	fmt.Printf("Сумма квадратов ошибок: Φ₁ = %.6f\n", error1)
+	fmt.Printf("F₁(%.3f) = %.6f\n\n", xStar, value1)
+
+	fmt.Println("--- Многочлен 2-й степени: F₂(x) = a₀ + a₁·x + a₂·x² ---")
+	for i, c := range coeffs2 {
+		fmt.Printf("  a%d = %.10f\n", i, c)
+	}
+	fmt.Printf("F₂(x) = %s\n", polynomialToString(coeffs2))
+	fmt.Printf("Сумма квадратов ошибок: Φ₂ = %.6f\n", error2)
+	fmt.Printf("F₂(%.3f) = %.6f\n\n", xStar, value2)
+
+	fmt.Println("--- Многочлен 3-й степени: F₃(x) = a₀ + a₁·x + a₂·x² + a₃·x³ ---")
+	for i, c := range coeffs3 {
+		fmt.Printf("  a%d = %.10f\n", i, c)
+	}
+	fmt.Printf("F₃(x) = %s\n", polynomialToString(coeffs3))
+	fmt.Printf("Сумма квадратов ошибок: Φ₃ = %.6f\n", error3)
+	fmt.Printf("F₃(%.3f) = %.6f\n\n", xStar, value3)
+
+	fmt.Println("--- Сравнение результатов ---")
+	fmt.Printf("Степень 1:  Φ = %.8f,  F(x*) = %.10f\n", error1, value1)
+	fmt.Printf("Степень 2:  Φ = %.8f,  F(x*) = %.10f\n", error2, value2)
+	fmt.Printf("Степень 3:  Φ = %.8f,  F(x*) = %.10f\n\n", error3, value3)
 
 	minError := math.Min(error1, math.Min(error2, error3))
 	bestDegree := 1
@@ -323,6 +372,18 @@ func main() {
 	if error3 == minError {
 		bestDegree = 3
 	}
+	fmt.Printf("Наименьшая сумма квадратов ошибок у многочлена %d-й степени: Φ = %.6f\n\n", bestDegree, minError)
+
+	fmt.Println("--- Значения многочленов в узловых точках ---")
+	for i := 0; i < len(xi); i++ {
+		f1 := evaluatePolynomial(coeffs1, xi[i])
+		f2 := evaluatePolynomial(coeffs2, xi[i])
+		f3 := evaluatePolynomial(coeffs3, xi[i])
+		fmt.Printf("x = %6.2f:  y = %8.4f,  F₁(x) = %8.4f,  F₂(x) = %8.4f,  F₃(x) = %8.4f\n", xi[i], yi[i], f1, f2, f3)
+	}
+	fmt.Println()
+
+	plot := createPlot(coeffs1, coeffs2, coeffs3)
 
 	poly1Text := fmt.Sprintf("Многочлен 1-й степени\nF₁(x) = %s\nСумма квадратов ошибок: Φ₁ = %.6f\nF₁(%.3f) = %.6f", polynomialToString(coeffs1), error1, xStar, value1)
 	poly2Text := fmt.Sprintf("Многочлен 2-й степени\nF₂(x) = %s\nСумма квадратов ошибок: Φ₂ = %.6f\nF₂(%.3f) = %.6f", polynomialToString(coeffs2), error2, xStar, value2)
